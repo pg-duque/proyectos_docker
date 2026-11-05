@@ -9,6 +9,49 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d incidencias"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 15s
+    networks:
+    - datos
+  frontend:
+    image: ${FRONTEND_IMAGE}
+    platform: linux/arm64 # He tenido que añadir esta línea tanto en el frontend como en el 
+                          # backend para que la imagen que nos pasas se ejecute correctamente
+    ports:
+      - "${PUERTO_WEB}:8080" # He tenido también que cambiar el puerto de 80 a 8080 para que no
+                            # haya conflictos con el puerto 80 del host. He quitado el 127.0.0.1
+                            # porque por lo visto al usar wsl desde windows se bloquea el puente de red hacia el navegador
+    depends_on:
+      - backend
+    networks:
+      - frontend
+  backend:
+    image: ${BACKEND_IMAGE}
+    platform: linux/arm64 # Aquí la otra línea
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - frontend
+      - datos
 
 volumes:
   postgres_data:
+
+networks:
+  frontend:
+  datos:
+
+# He tenido que correr el comando docker run --privileged --rm tonistiigi/binfmt --install all para que las imágenes 
+# de linux/arm64 se ejecuten correctamente en mi máquina con Windows 11 y WSL2, porque aun poniendo el platform
+# seguía dando un error de ejecucion de formato.
